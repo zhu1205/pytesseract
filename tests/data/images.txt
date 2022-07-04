@@ -1,2 +1,2 @@
-./tests/data/test.jpg
-./tests/data/test-european.jpg
+This is a lot of,../tests/data/test.jpg
+La volpe marrone,../tests/data/test-european.jpg,lang=fra

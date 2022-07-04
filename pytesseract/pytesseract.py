@@ -52,6 +52,9 @@ SUPPORTED_FORMATS = {
     'GIF',
     'WEBP',
 }
+FORMATS_REDIRECT = {
+    'JPEG2000': 'JPEG'
+}
 
 OSD_KEYS = {
     'Page number': ('page_num', int),
@@ -227,20 +230,20 @@ def subprocess_args(include_stdout=True):
 
 
 def run_tesseract(
-    input_filename,
-    output_filename_base,
+    image,
     extension,
     lang,
     config='',
     nice=0,
     timeout=0,
+    return_bytes=False
 ):
     cmd_args = []
 
     if not sys.platform.startswith('win32') and nice != 0:
         cmd_args += ('nice', '-n', str(nice))
 
-    cmd_args += (tesseract_cmd, input_filename, output_filename_base)
+    cmd_args += (tesseract_cmd, 'stdin', 'stdout')
 
     if lang is not None:
         cmd_args += ('-l', lang)
@@ -253,6 +256,13 @@ def run_tesseract(
 
     try:
         proc = subprocess.Popen(cmd_args, **subprocess_args())
+
+        image.save(proc.stdin, format=FORMATS_REDIRECT.get(image.format, image.format))
+        # or
+        # proc.stdin.write(image)
+
+        _stdout, _stderr = proc.communicate()
+        proc.stdin.close()
     except OSError as e:
         if e.errno != ENOENT:
             raise
@@ -262,6 +272,11 @@ def run_tesseract(
     with timeout_manager(proc, timeout) as error_string:
         if proc.returncode:
             raise TesseractError(proc.returncode, get_errors(error_string))
+
+    if return_bytes:
+        return _stdout
+    else:
+        return _stdout.decode()  # convert to string
 
 
 def run_and_get_output(
@@ -273,24 +288,27 @@ def run_and_get_output(
     timeout=0,
     return_bytes=False,
 ):
+    if isinstance(image, str):
+        image = Image.open(image)
 
-    with save(image) as (temp_name, input_filename):
-        kwargs = {
-            'input_filename': input_filename,
-            'output_filename_base': temp_name,
-            'extension': extension,
-            'lang': lang,
-            'config': config,
-            'nice': nice,
-            'timeout': timeout,
-        }
+    image, _ = prepare(image)
+    # or
+    # with BytesIO() as output:
+    #     dpi = image.info.get('dpi', (300, 300))
+    #     image.save(output, format=image.format, dpi=dpi)
+    #     image_bytes = output.getvalue()
 
-        run_tesseract(**kwargs)
-        filename = f"{kwargs['output_filename_base']}{extsep}{extension}"
-        with open(filename, 'rb') as output_file:
-            if return_bytes:
-                return output_file.read()
-            return output_file.read().decode(DEFAULT_ENCODING)
+    kwargs = {
+        'image': image,
+        'extension': extension,
+        'lang': lang,
+        'config': config,
+        'nice': nice,
+        'timeout': timeout,
+        'return_bytes': return_bytes
+    }
+
+    return run_tesseract(**kwargs)
 
 
 def file_to_dict(tsv, cell_delimiter, str_col_idx):

@@ -140,7 +140,18 @@ def test_image_to_string_european(test_file_european):
 )
 def test_image_to_string_batch():
     batch_file = path.join(DATA_DIR, 'images.txt')
-    assert 'The quick brown dog' in image_to_string(batch_file)
+    with open(batch_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                items = line.split(',')
+                expected_str = items[0]
+                filepath = items[1]
+                kwargs = {}
+                for item in items[2:]:
+                    k, v = item.split('=')
+                    kwargs[k] = v
+                assert expected_str in image_to_string(filepath, **kwargs)
 
 
 def test_image_to_string_multiprocessing():
@@ -165,6 +176,17 @@ def test_image_to_string_multiprocessing():
 def test_image_to_string_timeout(test_file):
     with pytest.raises(RuntimeError):
         image_to_string(test_file, timeout=0.000000001)
+
+
+def test_image_file_to_string(test_file):
+    filepath = path.join(DATA_DIR, 'test_la.png')
+    assert 'This is test message' == image_to_string(filepath).strip()
+
+
+def test_image_to_string(test_file):
+    filepath = path.join(DATA_DIR, 'test_la.png')
+    img = Image.open(filepath)
+    assert 'This is test message' == image_to_string(img).strip()
 
 
 def test_la_image_to_string():
